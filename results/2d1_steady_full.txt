@@ -1,0 +1,13 @@
+DFG 2D-1 benchmark (Re=20, steady), config=full
+Reference (Schafer-Turek 1996, Table 3): c_D in (5.57, 5.59), c_L in (0.0104, 0.011), dP in (0.1172, 0.1176)
+
+  cells     dofs   it   time(s)        c_D        c_L         dP
+   5324    24508    5      0.89    5.54427   0.012747    0.11767
+  13351    60952    5      2.45    5.56255   0.010627    0.11689
+  37207   168879    5      5.10    5.57038   0.011193    0.11728
+  82913   375281    5     12.37    5.57435   0.010427    0.11750
+
+Finest-mesh discrepancy from reference INTERVAL (0 if inside):
+  c_D: computed=5.57435, reference interval=(5.57, 5.59), INSIDE interval
+  c_L: computed=0.01043, reference interval=(0.0104, 0.011), INSIDE interval
+  dP: computed=0.11750, reference interval=(0.1172, 0.1176), INSIDE interval

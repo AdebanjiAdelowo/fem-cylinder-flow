@@ -1,0 +1,14 @@
+# Default laptop-scale configuration: a 3-level mesh-refinement ladder for
+# the steady 2D-1 benchmark (demonstrates the convergence trend; total
+# runtime a few seconds on the benchmark hardware, see README) plus a
+# moderate-resolution unsteady 2D-2 run.
+2d1_mesh_levels:
+  - {h_far: 0.060, h_cyl: 0.0120}
+  - {h_far: 0.040, h_cyl: 0.0080}
+  - {h_far: 0.025, h_cyl: 0.0050}
+
+2d2_unsteady:
+  h_far: 0.08
+  h_cyl: 0.015
+  dt: 0.01
+  t_end: 8.0

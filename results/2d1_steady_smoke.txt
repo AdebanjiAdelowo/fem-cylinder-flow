@@ -1,0 +1,11 @@
+DFG 2D-1 benchmark (Re=20, steady), config=smoke
+Reference (Schafer-Turek 1996, Table 3): c_D in (5.57, 5.59), c_L in (0.0104, 0.011), dP in (0.1172, 0.1176)
+
+  cells     dofs   it   time(s)        c_D        c_L         dP
+    895     4250    5      1.51    5.39726   0.005365    0.11885
+   2416    11237    5      0.28    5.50858   0.000687    0.11493
+
+Finest-mesh discrepancy from reference INTERVAL (0 if inside):
+  c_D: computed=5.50858, reference interval=(5.57, 5.59), -1.103% outside nearest bound
+  c_L: computed=0.00069, reference interval=(0.0104, 0.011), -93.390% outside nearest bound
+  dP: computed=0.11493, reference interval=(0.1172, 0.1176), -1.933% outside nearest bound

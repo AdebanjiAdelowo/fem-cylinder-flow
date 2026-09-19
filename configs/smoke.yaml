@@ -1,0 +1,10 @@
+# Fast sanity-check configuration; should finish in well under a minute.
+2d1_mesh_levels:
+  - {h_far: 0.10, h_cyl: 0.02}
+  - {h_far: 0.06, h_cyl: 0.012}
+
+2d2_unsteady:
+  h_far: 0.08
+  h_cyl: 0.015
+  dt: 0.01
+  t_end: 2.0
