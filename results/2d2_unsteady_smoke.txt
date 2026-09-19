@@ -1,0 +1,21 @@
+DFG 2D-2 benchmark (Re=100, unsteady), config=smoke
+mesh: cells=1499, dofs=7028, dt=0.01, t_end=2.0, theta=0.5 (Crank-Nicolson), wall_time=22.11s
+Reference (Schafer-Turek 1996, Table 4): c_D,max in (3.22, 3.24), c_L,max in (0.99, 1.01), St in (0.295, 0.305), dP in (2.46, 2.5)
+
+--- Saturation check (last <=6 lift peaks in the post-transient window) ---
+  0.12346, 0.18415
+  spread = 0.06069 (NOT flat: transient may still be present)
+
+computed c_D,max = 2.8041  (max over last half of run)
+computed c_L,max = 0.2915  (max over last half of run)
+computed dP(t at c_L,max) = 2.2588
+
+--- Strouhal number: two independent estimates ---
+  FFT (Hanning window, 1.00s post-transient window, quadratic log-magnitude peak interpolation): f = 2.7517 Hz -> St = 0.2752
+  Direct peak-to-peak period (2 peaks, mean period 0.37000s): f = 2.7027 Hz -> St = 0.2703
+  agreement between the two methods: 1.78% relative difference
+
+  c_D,max: computed=2.80415, reference interval=(3.22, 3.24), OUTSIDE interval by -12.915% (vs. nearest bound)
+  c_L,max: computed=0.29152, reference interval=(0.99, 1.01), OUTSIDE interval by -70.554% (vs. nearest bound)
+  St (FFT): computed=0.27517, reference interval=(0.295, 0.305), OUTSIDE interval by -6.721% (vs. nearest bound)
+  dP: computed=2.25883, reference interval=(2.46, 2.5), OUTSIDE interval by -8.178% (vs. nearest bound)
