@@ -1,0 +1,27 @@
+# FEniCSx + PETSc + gmsh, installed via conda-forge (the officially supported
+# route on Apple Silicon; pip wheels for dolfinx are not reliably available
+# for macOS/arm64). Verified working on this machine: macOS 26 / Apple M3 Pro.
+#
+#   conda env create -f environment.yml
+#   conda activate fenicsx
+#
+# Exact versions actually installed and used for every result in this
+# repository (see results/environment_versions.txt for the full pinned list):
+#   fenics-dolfinx 0.10.0, petsc4py 3.24.3, mpich 4.3.2, gmsh 4.15.2,
+#   python 3.12.12
+name: fenicsx
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - fenics-dolfinx
+  - mpich
+  - petsc4py
+  - gmsh
+  - python-gmsh
+  - pyvista
+  - numpy
+  - scipy
+  - matplotlib
+  - pytest
+  - pyyaml
