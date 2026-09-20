@@ -209,7 +209,12 @@ $c_L \in [0.0104, 0.0110]$, $\Delta P \in [0.1172, 0.1176]$.
 $c_D = 5.5744$, $c_L = 0.01043$, $\Delta P = 0.1175$. This is a directly verified statement, not an
 approximate one — see `results/2d1_steady_full.txt`. The coarser levels show the expected monotonic
 approach toward the reference interval (figure: `figures/2d1_convergence_full.png`); at the coarsest
-tested level $c_D$ and $\Delta P$ are still outside it by roughly 1–2%.
+tested level $c_D$ and $\Delta P$ are still outside it by roughly 1–2%. Velocity magnitude (with
+streamlines), pressure, and vorticity fields at the finest mesh are shown in
+`figures/2d1_fields_full.png`: qualitatively correct stagnation-point pressure rise ahead of the
+cylinder, a low-pressure region on its flanks, and an antisymmetric vorticity pattern of opposite sign
+above/below the wake centreline, consistent with steady laminar flow past a bluff body at this
+Reynolds number.
 
 ### 2D-2 (unsteady, Re = 100): vortex shedding
 
@@ -276,7 +281,8 @@ attributable almost entirely to spatial (mesh) resolution, not to the time step*
 \mathrm{s}$ is already temporally converged for these quantities at this mesh, so further mesh
 refinement beyond 12,020 cells (not attempted here; see Limitations) would be the correct next step
 to close the remaining gap, not a smaller time step. This is consistent with, and explains, the same
-pattern already seen in the 2D-1 steady mesh-convergence study above.
+pattern already seen in the 2D-1 steady mesh-convergence study above. Force-coefficient time series for
+this $\Delta t=0.01$ sensitivity run are plotted in `figures/2d2_force_coefficients_full_dt01.png`.
 
 ## Physical interpretation
 
