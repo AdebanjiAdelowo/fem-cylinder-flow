@@ -111,18 +111,16 @@ class NewtonSettings:
     max_it: int = 25
 
 
-def newton_solve(F, w, bcs, mesh, settings: NewtonSettings = NewtonSettings(), prefix: str = "ns_"):
-    """Solve F(w) = 0 with PETSc SNES (Newton line search + direct LU/MUMPS
-    linear solves), using the exact Jacobian from UFL's automatic
-    differentiation of F.
+def make_newton_problem(F, w, bcs, settings: NewtonSettings = NewtonSettings(), prefix: str = "ns_"):
+    """Build (but do not solve) the SNES problem for F(w) = 0.
 
-    dolfinx.fem.petsc.NonlinearProblem (>= 0.10) is a self-contained SNES
-    wrapper: constructing it does not solve the problem, `.solve()` does.
-    (The older two-class NonlinearProblem + dolfinx.nls.petsc.NewtonSolver
-    pattern from earlier dolfinx versions was replaced by this single class.)
+    Newton line search with the exact Jacobian from UFL's automatic differentiation of F and
+    a direct LU (MUMPS) linear solve at every Newton iteration. The forms are compiled once, so a
+    time loop can call ``problem.solve()`` repeatedly after updating any Coefficient that F
+    depends on (e.g. ``w_prev``) in place -- the residual is then not rebuilt every step.
     """
     J = ufl.derivative(F, w)
-    problem = NonlinearProblem(
+    return NonlinearProblem(
         F, w, bcs=bcs, J=J,
         petsc_options_prefix=prefix,
         petsc_options={
@@ -138,9 +136,26 @@ def newton_solve(F, w, bcs, mesh, settings: NewtonSettings = NewtonSettings(), p
             "pc_factor_mat_solver_type": "mumps",
         },
     )
+
+
+def solve_newton_problem(problem) -> int:
+    """Solve a problem from ``make_newton_problem``; return the Newton iteration count."""
     problem.solve()
     n_it = problem.solver.getIterationNumber()
     reason = problem.solver.getConvergedReason()
     if reason <= 0:
         raise RuntimeError(f"SNES Newton solve did not converge (reason={reason})")
     return n_it
+
+
+def newton_solve(F, w, bcs, mesh, settings: NewtonSettings = NewtonSettings(), prefix: str = "ns_"):
+    """Solve F(w) = 0 with PETSc SNES (Newton line search + direct LU/MUMPS
+    linear solves), using the exact Jacobian from UFL's automatic
+    differentiation of F.
+
+    dolfinx.fem.petsc.NonlinearProblem (>= 0.10) is a self-contained SNES
+    wrapper: constructing it does not solve the problem, `.solve()` does.
+    (The older two-class NonlinearProblem + dolfinx.nls.petsc.NewtonSolver
+    pattern from earlier dolfinx versions was replaced by this single class.)
+    """
+    return solve_newton_problem(make_newton_problem(F, w, bcs, settings, prefix))

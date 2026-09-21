@@ -1,0 +1,21 @@
+DFG 2D-1 benchmark (Re=20, steady), config=full, geometry order=2, headline force=laplacian
+Comparison intervals (Schafer-Turek 1996 Table 3, carried over): c_D in (5.57, 5.59), c_L in (0.0104, 0.011), dP in (0.1172, 0.1176)
+Spectral reference (Nabh 1998 via FeatFlow): c_D=5.57953523384, c_L=0.010618948146, dP=0.11752016697
+
+  cells     dofs   it   time(s)        c_D        c_L         dP    area err  max r-dev/R
+   5324    24508    5      1.09    5.56073   0.012545    0.11784   -1.27e-06     1.18e-06
+  13351    60952    5      3.23    5.57202   0.011699    0.11703   -2.06e-07     1.93e-07
+  37207   168879    5     10.45    5.57643   0.011065    0.11733   -2.67e-08     2.50e-08
+  82913   375281    5     26.72    5.57829   0.010489    0.11751   -5.21e-09     4.87e-09
+
+All four force definitions per level (c_D / c_L):
+  cells               laplacian               symmetric              tangential             variational
+   5324      5.56073   0.012545      5.57564   0.012772      5.54581   0.012319      5.57909   0.010722
+  13351      5.57202   0.011699      5.57881   0.011004      5.56524   0.012395      5.57946   0.010606
+  37207      5.57643   0.011065      5.57856   0.011269      5.57431   0.010862      5.57952   0.010621
+  82913      5.57829   0.010489      5.57929   0.010370      5.57729   0.010607      5.57953   0.010619
+
+Finest level vs. comparison interval and vs. spectral reference:
+  c_D: computed=5.57829, interval (5.57, 5.59): inside; relative difference to spectral value -0.022%
+  c_L: computed=0.01049, interval (0.0104, 0.011): inside; relative difference to spectral value -1.225%
+  dP: computed=0.11751, interval (0.1172, 0.1176): inside; relative difference to spectral value -0.010%

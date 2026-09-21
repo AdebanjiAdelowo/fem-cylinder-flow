@@ -1,0 +1,33 @@
+DFG 2D-2 benchmark (Re=100, unsteady), run label = t_p2_dt005
+mesh: cells=12020, dofs=54860, geometry order=2 (h_far=0.03, h_cyl=0.005), dt=0.005, theta=0.5, t in [8.0, 12.0]
+cylinder geometry: perimeter err -1.030e-07, area err -2.061e-07, max radial deviation 1.926e-07 R, 63 facets
+init: {'init_state': 'results/states/p2_base_t8.npz', 't_start': 8.0, 'source_mesh': {'h_far': 0.03, 'h_cyl': 0.005, 'geometry_order': 2}}
+cost: wall=885.0s cpu=2398.9s (1.106 s/step), Newton its/step=3.00
+analysis from t >= 9.0; 8 lift cycles (c_L min -> c_L min); drift = |last - previous cycle|, spread = max-min over last 4 cycles
+
+force method    c_D,max   c_L,max   c_L,min    period  St(cyc)  St(fft)  St(fit)  dP@clmax  dP@+T/2  periodic
+laplacian*      3.21759   0.98591  -1.02128   0.33157  0.30160  0.30160  0.30160    2.4730   2.4752  True
+symmetric       3.22214   0.98604  -1.02227   0.33157  0.30160  0.30160  0.30160    2.4730   2.4752  True
+tangential      3.21305   0.98578  -1.02028   0.33157  0.30160  0.30160  0.30160    2.4730   2.4752  True
+variational     3.22673   0.98543  -1.01915   0.33157  0.30160  0.30160  0.30160    2.4732   2.4754  True
+
+(* primary = laplacian.  variational force is centred at t_(n+1/2).)
+
+--- periodic-regime evidence, primary force (laplacian) ---
+quantity        last cycle      drift  spread(last 4)  tolerance
+cd_max             3.21759   7.79e-08        7.79e-08      5e-05
+cl_max             0.98591   1.35e-07        2.61e-07      1e-04
+cl_min            -1.02128   0.00e+00        2.07e-07      1e-04
+cl_amp             2.00719   1.35e-07        4.68e-07          -
+period             0.33157   4.27e-07        1.03e-06      2e-04
+extraction: spline vs local-parabola extremum differ by 5.9e-06 (c_L,max), 4.1e-06 (c_D,max); a raw-sample maximum would have been low by 1.8e-05 (c_L,max), 2.0e-05 (c_D,max)
+Strouhal, primary: cycle period 0.30160, FFT 0.30160 (window 9.00-12.00 s), harmonic fit 0.30160; definition St = f*D/Ubar, f = 1/mean(cycle period over last 4 cycles) for the headline value
+
+--- position relative to the repository's comparison intervals (see src/reference.py) ---
+  c_D,max        3.21759  interval (3.22, 3.24): outside by -0.07% (vs nearest bound 3.22)
+  c_L,max        0.98591  interval (0.99, 1.01): outside by -0.41% (vs nearest bound 0.99)
+  St             0.30160  interval (0.295, 0.305): inside
+  dP @ c_L,max   2.47301  interval (2.46, 2.5): inside
+  dP @ +T/2      2.47516  interval (2.46, 2.5): inside
+
+FeatFlow level-6 (667k dof) dt=1/1600 for orientation: c_D,max=3.22739, c_L,max=0.98658, period=0.3313, dP@c_L,max=2.4829

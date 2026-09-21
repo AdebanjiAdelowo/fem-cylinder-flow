@@ -1,0 +1,33 @@
+DFG 2D-2 benchmark (Re=100, unsteady), run label = geo_p2_full
+mesh: cells=12020, dofs=54860, geometry order=2 (h_far=0.03, h_cyl=0.005), dt=0.005, theta=0.5, t in [0.0, 8.0]
+cylinder geometry: perimeter err -1.030e-07, area err -2.061e-07, max radial deviation 1.926e-07 R, 63 facets
+init: {'init_state': None, 't_start': 0.0}
+cost: wall=1170.5s cpu=3870.3s (0.732 s/step), Newton its/step=2.85
+analysis from t >= 1.0; 20 lift cycles (c_L min -> c_L min); drift = |last - previous cycle|, spread = max-min over last 4 cycles
+
+force method    c_D,max   c_L,max   c_L,min    period  St(cyc)  St(fft)  St(fit)  dP@clmax  dP@+T/2  periodic
+laplacian*      3.21758   0.98587  -1.02125   0.33157  0.30160  0.30161  0.30161    2.4730   2.4752  True
+symmetric       3.22212   0.98600  -1.02225   0.33157  0.30160  0.30161  0.30161    2.4730   2.4752  True
+tangential      3.21303   0.98574  -1.02025   0.33157  0.30160  0.30161  0.30161    2.4730   2.4751  True
+variational     3.22672   0.98539  -1.01912   0.33157  0.30160  0.30161  0.30161    2.4732   2.4753  True
+
+(* primary = laplacian.  variational force is centred at t_(n+1/2).)
+
+--- periodic-regime evidence, primary force (laplacian) ---
+quantity        last cycle      drift  spread(last 4)  tolerance
+cd_max             3.21758   1.31e-05        8.01e-05      5e-05
+cl_max             0.98587   3.18e-05        1.97e-04      1e-04
+cl_min            -1.02125   2.37e-05        1.47e-04      1e-04
+cl_amp             2.00712   5.55e-05        3.43e-04          -
+period             0.33157   1.45e-06        2.52e-06      2e-04
+extraction: spline vs local-parabola extremum differ by 3.6e-06 (c_L,max), 3.6e-06 (c_D,max); a raw-sample maximum would have been low by 4.0e-04 (c_L,max), 1.1e-06 (c_D,max)
+Strouhal, primary: cycle period 0.30160, FFT 0.30161 (window 4.00-8.00 s), harmonic fit 0.30161; definition St = f*D/Ubar, f = 1/mean(cycle period over last 4 cycles) for the headline value
+
+--- position relative to the repository's comparison intervals (see src/reference.py) ---
+  c_D,max        3.21758  interval (3.22, 3.24): outside by -0.08% (vs nearest bound 3.22)
+  c_L,max        0.98587  interval (0.99, 1.01): outside by -0.42% (vs nearest bound 0.99)
+  St             0.30160  interval (0.295, 0.305): inside
+  dP @ c_L,max   2.47300  interval (2.46, 2.5): inside
+  dP @ +T/2      2.47516  interval (2.46, 2.5): inside
+
+FeatFlow level-6 (667k dof) dt=1/1600 for orientation: c_D,max=3.22739, c_L,max=0.98658, period=0.3313, dP@c_L,max=2.4829

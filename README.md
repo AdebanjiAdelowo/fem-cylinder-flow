@@ -89,7 +89,20 @@ confirmed directly in `tests/test_navier_stokes.py` and discussed further under 
   fieldsplit preconditioner is a natural performance follow-up for much larger 3D-scale problems (see
   Limitations), not attempted here.
 - **Mesh generation**: gmsh (OpenCASCADE kernel), boolean-cut rectangle-minus-disk, with a
-  distance-based sizing field refining the mesh near the cylinder (`src/geometry.py`).
+  distance-based sizing field refining the mesh near the cylinder (`src/geometry.py`). The geometry
+  map is degree 1 by default (the cylinder is an inscribed polygon) or degree 2 with
+  `geometry_order=2` / `--geometry-order 2` (curved isoparametric cylinder: same vertices and cells,
+  extra edge nodes on the exact circle). The imported coordinate-element degree is checked after the
+  gmsh to dolfinx conversion, and `cylinder_geometry_report` measures the perimeter, enclosed-area
+  and radial-deviation errors of the meshed boundary through the geometry map the solver uses.
+- **Force post-processing** (`src/forces.py`): four definitions of the force on the cylinder are
+  available. `laplacian` is the benchmark's own stress $\nu\nabla u - pI$; `symmetric` is
+  $\nu(\nabla u + \nabla u^\top) - pI$, which is equal to it only for a divergence-free velocity;
+  `tangential` is the paper's tangential-derivative form; `variational` is the discrete reaction
+  force, the weak-form residual tested with a function equal to a unit vector on the cylinder nodes
+  (no facet normals, and for the unsteady scheme centred at $t_{n+1/2}$). All four are recorded so
+  the post-processing error is visible next to the discretisation error. The benchmark definition
+  audit is in [`docs/benchmark_audit.md`](docs/benchmark_audit.md).
 - **Time discretisation** (2D-2 only): Crank-Nicolson $\theta$-method, Newton solve every step.
 - **Newton/SNES tolerances**: `snes_rtol = 1e-10`, `snes_atol = 1e-10`, `snes_max_it = 25`, with
   `snes_error_if_not_converged = True` — every solve in this repository either meets this tolerance or
@@ -100,22 +113,26 @@ confirmed directly in `tests/test_navier_stokes.py` and discussed further under 
 ```
 fem-cylinder-flow/
 ├── src/
-│   ├── geometry.py         gmsh mesh generation, Schäfer-Turek geometry constants
+│   ├── geometry.py         gmsh mesh generation (degree 1 or 2), geometry-error report, constants
 │   ├── spaces.py             Taylor-Hood P2/P1 mixed function space
 │   ├── navier_stokes.py       weak-form residual (steady + theta-method unsteady), Newton/SNES solve
 │   ├── cylinder_bcs.py         no-slip / parabolic-inflow / do-nothing boundary conditions
-│   ├── forces.py                c_D, c_L, Delta P post-processing
+│   ├── forces.py                c_D, c_L (four force definitions), pressure probes
+│   ├── periodic.py               per-cycle extraction of benchmark observables, periodicity check, St
+│   ├── restart.py                 save/load a state, interpolating between meshes
+│   ├── reference.py                published comparison values and their provenance
 │   └── manufactured.py           UFL-symbolic manufactured Stokes/Navier-Stokes solutions
 ├── scripts/
 │   ├── verify_mms.py         manufactured-solution verification + mesh-convergence figure
 │   ├── run_2d1_steady.py       2D-1 benchmark + mesh-convergence ladder
-│   ├── run_2d2_unsteady.py      2D-2 benchmark, force-coefficient time series, Strouhal via FFT
+│   ├── run_2d2_unsteady.py      2D-2 benchmark: time series, per-cycle analysis, restart/checkpoint
+│   ├── analyze_2d2.py            re-run the cycle analysis on a saved time series (no FEM solve)
+│   ├── collect_2d2_study.py       tabulate runs, observed convergence orders
+│   ├── study_2d2_commands.sh       the geometry / time-step / mesh study as an exact command matrix
 │   ├── plot_2d1_convergence.py   c_D/c_L/Delta P vs. resolution figure
-│   ├── plot_fields_2d1.py         velocity/pressure/vorticity/streamline figure
-│   └── reprocess_2d2.py            regenerate 2D-2 results/figures from a saved time series
-│                                     (no FEM re-solve) -- used to fix the Strouhal-estimation
-│                                     method after the ~34 min full run had already completed
-├── tests/                   18 pytest tests: geometry, spaces, BCs, forces, MMS, solver
+│   └── plot_fields_2d1.py         velocity/pressure/vorticity/streamline figure
+├── tests/                   62 pytest tests: geometry, spaces, BCs, forces, periodic analysis, restart, MMS, solver
+├── docs/                    benchmark definition audit, 2D-2 convergence study
 ├── configs/                 smoke.yaml / local.yaml / full.yaml
 ├── figures/, results/       generated outputs (see below)
 └── environment.yml           conda-forge FEniCSx environment specification
@@ -216,73 +233,124 @@ cylinder, a low-pressure region on its flanks, and an antisymmetric vorticity pa
 above/below the wake centreline, consistent with steady laminar flow past a bluff body at this
 Reynolds number.
 
+### 2D-1 with curved geometry and the four force definitions
+
+`python scripts/run_2d1_steady.py --config full --geometry-order 2` (same four meshes, 375,281 dofs
+at the finest). The high-order spectral reference values (Nabh 1998, as published on the FeatFlow
+benchmark page) are $c_D = 5.57953523$, $c_L = 0.010618948$, $\Delta P = 0.11752017$.
+
+| configuration (finest mesh) | $c_D$ | $c_L$ | $\Delta P$ |
+|---|---:|---:|---:|
+| polygon, symmetric stress (original) | 5.57435 | 0.010427 | 0.11750 |
+| polygon, benchmark stress | 5.57288 | 0.010543 | 0.11750 |
+| curved, benchmark stress | 5.57829 | 0.010489 | 0.11751 |
+| curved, variational force | 5.57953 | 0.010619 | 0.11751 |
+
+All three quantities are inside the intervals in every row. With the variational force on the
+curved mesh the finest-mesh values differ from the spectral ones by $-3.6\times10^{-7}$ (relative,
+$c_D$) and $+1.8\times10^{-5}$ ($c_L$), and $\Delta P$ by $-1.0\times10^{-4}$ ($\Delta P$ does not
+depend on the force definition). $c_D$ converges monotonically over the four levels (5.579089,
+5.579458, 5.579525, 5.579533); $c_L$ does not (0.010722, 0.010606, 0.010621, 0.010619). The
+traction-based $c_L$ converges slowly: with the symmetric stress on the polygonal mesh it is not
+monotone over the ladder (0.01275, 0.01063, 0.01119, 0.01043), and with the benchmark stress on the
+curved mesh the finest value is 1.2 percent below the spectral one. Only about five significant
+figures of $c_L$ are meaningful.
+
 ### 2D-2 (unsteady, Re = 100): vortex shedding
 
-`python scripts/run_2d2_unsteady.py --config full` — Crank-Nicolson, $\Delta t = 0.005\,\mathrm{s}$,
-$t_{\mathrm{end}} = 8\,\mathrm{s}$, mesh 12,020 cells / 54,860 dofs, wall time 2045.36 s (34.1 min).
+The DFG 2D-2 benchmark was revisited with curved geometry, audited force definitions, time-step and
+mesh refinement, and periodic-cycle extraction. Drag, Strouhal number and pressure difference lie
+within their stated ranges. The refined lift maximum remains slightly below the stated 0.9900 lower
+bound while closely matching the published FeatFlow computation examined here; **full 2D-2
+reproduction is therefore not claimed.** Every table is in
+[`docs/2d2_convergence_study.md`](docs/2d2_convergence_study.md).
 
-**Saturation check.** $C_L(t)$'s oscillation amplitude grows from the impulsive start and must reach
-a statistically stationary limit cycle before any "$c_{D,\max}$"/"$c_{L,\max}$" is meaningful. The
-last six lift peaks in the post-transient window are 0.98248, 0.98338, 0.98346, 0.98274, 0.98332,
-0.98367 — a spread of 0.0012, i.e. flat to three significant figures — confirming the run reached a
-converged periodic regime well before $t=8\,\mathrm{s}$ (figure:
-`figures/2d2_force_coefficients_full.png`, left panel; the very large transient spike visible in the
-raw data at $t\approx0$, up to $c_D\approx74$, is the well-known impulsive-start artefact of switching
-on the full parabolic inflow in one time step, decays within the first $\sim$0.1 s, and is excluded
-from the plotted $y$-range for readability but is present in `results/2d2_timeseries_full.npz`).
+**Method.** Crank-Nicolson time stepping with a Newton solve every step. Benchmark quantities are
+extracted per lift cycle (from one minimum of $c_L$ to the next, the benchmark's own definition)
+from cubic-spline extrema of the sampled signals, not from the largest time sample. A run counts as
+periodic only if the change between its last two cycles is below a stated tolerance. The Strouhal
+number $\mathrm{St} = f D / \bar U$ is computed from the mean cycle period and cross-checked by a
+zero-padded FFT and a harmonic least-squares fit; the three agree to $10^{-5}$ in every run.
 
-**Strouhal number: two independent estimates.** The raw FFT bin spacing for a 4 s post-transient
-window is 0.25 Hz ($\Delta\mathrm{St}=0.025$) — wider than the *entire* published reference interval
-(width 0.01) — so the shedding frequency is recovered via three-point quadratic (parabolic)
-interpolation on the log-magnitude spectrum around the peak bin (`strouhal_from_series` in
-`scripts/run_2d2_unsteady.py`), a standard sub-bin-resolution DSP technique. This is cross-checked
-against a fully independent, FFT-free estimate: the mean period between 12 successive $c_L(t)$ peaks
-in the same window.
+**Where the reference numbers come from.** (1) The intervals in the table below are those the
+repository has carried since its first commit, attributed to the 1996 benchmark paper of Schäfer and
+Turek; that paper was **not re-read** for this study and the intervals were not independently
+re-verified. (2) The FeatFlow values are the benchmark maintainers' own published time series
+(level 6, 667,264 dofs, $\Delta t = 1/1600$), analysed here with the same cycle extraction; they are
+another code's numerical results, not certified bounds. (3) All other numbers were computed here.
+The pressure difference is defined on the FeatFlow page as a function of time over a cycle; whether
+the 1996 table fixes a single instant was not verified, so it is reported at the lift maximum
+($\Delta P_1$) and half a period later ($\Delta P_2$).
 
-| Method | Result |
-|---|---|
-| FFT (Hanning window, 4.00 s, quadratic log-magnitude peak interpolation) | $f=3.0190\,\mathrm{Hz} \Rightarrow \mathrm{St}=0.3019$ |
-| Direct peak-to-peak period (12 peaks, mean period 0.33136 s) | $f=3.0178\,\mathrm{Hz} \Rightarrow \mathrm{St}=0.3018$ |
+**Force definitions.** Four are recorded (see Numerical method): the benchmark stress
+`laplacian`, the original `symmetric` stress, `tangential`, and the `variational` reaction force,
+which is the most consistent with the discrete formulation. `laplacian` is the default headline
+force because it is the benchmark's own definition; `variational` is shown next to it because in
+the steady 2D-1 check it converges far faster and in the time-step study the traction forms show a
+time dependence that it does not. Neither is called correct; the spread between them is read as a
+discretisation-error indicator.
 
-The two independent methods agree to 0.04% relative difference.
+**Finest computed values** (curved degree-2 cylinder, 273,224 dofs, $\Delta t = 0.0025$, last lift
+cycle of a run to $t = 12$ s that is periodic to $10^{-7}$):
 
-**Benchmark comparison** (Schäfer & Turek, 1996, Table 4, lower/upper bound row):
+| Quantity | Computed: variational / benchmark stress | FeatFlow (finest published) | Interval (inherited) | Position |
+|---|---:|---:|---|---|
+| $C_{D,\max}$ | 3.2276 / 3.2258 | 3.2274 | [3.2200, 3.2400] | inside |
+| $C_{L,\max}$ | 0.9865 / 0.9876 | 0.9866 | [0.9900, 1.0100] | below, by 0.35 % / 0.24 % |
+| St | 0.3018 | 0.30184 | [0.2950, 0.3050] | inside |
+| $\Delta P_1$, $\Delta P_2$ | 2.4833, 2.4856 | 2.4829 ($\Delta P_1$) | [2.4600, 2.5000] | inside |
 
-| Quantity | Computed | Schäfer–Turek reference | Difference / status |
-|---|---:|---:|---:|
-| $C_{D,\max}$ | 3.2139 | $[3.2200,\ 3.2400]$ | $-0.190\%$ vs. nearest bound — outside |
-| $C_{L,\max}$ | 0.9837 | $[0.9900,\ 1.0100]$ | $-0.639\%$ vs. nearest bound — outside |
-| $\Delta P$ (at $t$ of $C_{L,\max}$) | 2.4712 | $[2.4600,\ 2.5000]$ | inside |
-| $\mathrm{St}$ (FFT) | 0.3019 | $[0.2950,\ 0.3050]$ | inside |
+The four force definitions span 3.2256 to 3.2276 in $C_{D,\max}$ and 0.9865 to 0.9879 in $C_{L,\max}$.
 
-Two of the four reported quantities fall inside the published reference interval; $C_{D,\max}$ and
-$C_{L,\max}$ are close but outside it, by $-0.19\%$ and $-0.64\%$ respectively relative to the nearest
-bound. These are the actual computed discrepancies — no parameter was tuned to force agreement.
+**Quantity by quantity.**
 
-**Mesh/time-step sensitivity** (isolating whether the remaining $C_{D,\max}$/$C_{L,\max}$ gap is
-spatial, temporal, or transient-window related): the `local` configuration (1,499 cells, $\Delta
-t=0.01\,\mathrm{s}$) also reaches a clean saturated limit cycle by $t=8\,\mathrm{s}$ (spread of the
-last six lift peaks: 0.0006), so it is directly comparable to `full`, with only the transient-window
-question already ruled out for both:
+* **$C_{D,\max}$.** Effectively converged at the $2\times10^{-4}$ level for the variational force
+  (L4 to L5 change $1.4\times10^{-4}$), but the mesh sequence is not monotone, so no order is claimed.
+  The traction forms converge monotonically (order about 2) to about 3.228, within 0.02 % of the
+  variational value. Inside the inherited interval and within 0.06 % of FeatFlow. The original
+  value 3.2139 was low for numerical reasons: the polygonal cylinder, the traction force on a
+  coarse mesh, and raw-sample extraction.
+* **$C_{L,\max}$.** The variational value is monotone over the last four levels and changes by
+  $6\times10^{-5}$ from L4 to L5, but the observed order is not stable across level triples (2.1,
+  then 4.6), so no rate is claimed. The traction values are still rising (0.9871 at L4, 0.9876 at
+  L5, extrapolating to 0.9878 to 0.9880), so the four definitions disagree by 0.14 % at the finest
+  mesh; this is unresolved. All values remain below the inherited lower bound of 0.9900. The
+  refined result remains below the stated 0.99 lower bound but agrees closely with the published
+  FeatFlow computation examined in this study. That is not evidence of a defect in this
+  implementation, nor of a problem with the interval, whose source was not re-checked.
+* **St.** Changes by $2\times10^{-5}$ over the last three meshes and converges at second order in
+  $\Delta t$ (0.30082, 0.30160, 0.30179, 0.30184 for $\Delta t = 0.01$ to 0.00125). Inside the
+  interval and within 0.02 % of FeatFlow.
+* **$\Delta P$.** Inside the interval at every mesh from L2 on for both instants, and close to the
+  FeatFlow value at L5, but the mesh sequence is not monotone (2.4732, 2.4780, 2.4833 over L3 to L5)
+  and the instant is not verified, so it is reported as within the range, not as converged.
 
-| Configuration | cells | dofs | $\Delta t$ | $C_{D,\max}$ | $C_{L,\max}$ | $\Delta P$ | St |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| `local` (coarse mesh, coarse $\Delta t$) | 1,499 | 7,028 | 0.010 | 3.0288 ($-5.94\%$) | 0.9727 ($-1.75\%$) | 2.3945 ($-2.66\%$) | 0.3036 (inside) |
-| `full`, $\Delta t = 0.01$ (fine mesh, coarse $\Delta t$) | 12,020 | 54,860 | 0.010 | 3.2140 ($-0.19\%$) | 0.9832 ($-0.68\%$) | 2.4721 (inside) | 0.3011 (inside) |
-| `full` (fine mesh, fine $\Delta t$) | 12,020 | 54,860 | 0.005 | 3.2139 ($-0.19\%$) | 0.9837 ($-0.64\%$) | 2.4712 (inside) | 0.3019 (inside) |
+**What was established by varying one factor at a time.**
 
-**Conclusion.** Halving the time step at *fixed* fine mesh ($\Delta t: 0.01 \to 0.005$, bottom two
-rows) changes $C_{D,\max}$ by $0.0001$ (0.003% relative) and $C_{L,\max}$ by $0.0005$ (0.05%
-relative) — both changes are noise-level, well inside the run-to-run peak-detection spread reported
-in the saturation check above. Refining the mesh at *fixed* coarse $\Delta t=0.01$ (top vs. middle
-row), by contrast, changes $C_{D,\max}$ by $+6.1\%$ and $C_{L,\max}$ by $+1.1\%$. **The remaining
-$-0.19\%/-0.64\%$ gap between the `full` result and the published reference interval is therefore
-attributable almost entirely to spatial (mesh) resolution, not to the time step** — $\Delta t=0.01\,
-\mathrm{s}$ is already temporally converged for these quantities at this mesh, so further mesh
-refinement beyond 12,020 cells (not attempted here; see Limitations) would be the correct next step
-to close the remaining gap, not a smaller time step. This is consistent with, and explains, the same
-pattern already seen in the 2D-1 steady mesh-convergence study above. Force-coefficient time series for
-this $\Delta t=0.01$ sensitivity run are plotted in `figures/2d2_force_coefficients_full_dt01.png`.
+* **Geometry.** With identical vertices, cells and dofs, the curved cylinder raises the variational
+  $C_{L,\max}$ by 0.40, 0.17 and 0.08 percent and $C_{D,\max}$ by 0.23, 0.10 and 0.04 percent over
+  three levels, in proportion to the polygon's area error ($-3.7\times10^{-3}$, $-1.7\times10^{-3}$,
+  $-7.3\times10^{-4}$). The effect converges away with the geometric error. This concerns the
+  representation of the circle, not the order of the flow solution.
+* **Time step.** For the variational force $C_{L,\max}$ = 0.98269, 0.98543, 0.98610, 0.98627 for
+  $\Delta t$ = 0.01 to 0.00125 (observed order 2.0 for this quantity and for St; not generalised to
+  other observables or forces). The traction-based $C_{L,\max}$ is not monotone in $\Delta t$
+  (0.98564, 0.98591, 0.98535, 0.98490), so the earlier statement that $\Delta t = 0.01$ was already
+  converged was not adequately supported. $C_{D,\max}$ depends only weakly on $\Delta t$.
+* **Mesh.** Five levels (14k to 273k dofs, ratio 1.5). The coarsest lands inside the $C_{L,\max}$
+  interval (0.99715), which is a transient of the convergence and not a result. Resolution near the
+  cylinder matters more than wake resolution for $C_{D,\max}$; for $C_{L,\max}$ both matter at the
+  0.1 percent level.
+* **Periodic regime.** The last-cycle change is at most $7\times10^{-6}$ in the continued runs
+  ($3\times10^{-5}$ in the 8 s runs from rest). The original run's lift peaks looked flat to three
+  figures only because of sampling; with refined peaks they were still rising by about $3\times10^{-5}$
+  per cycle, i.e. the flow was near-periodic, not exactly periodic. A run started from an interpolated
+  coarse-mesh state and a run from rest on the same mesh agree to $2\times10^{-6}$.
+
+**Time horizon.** The benchmark procedure prescribes about 25 s of simulation and measurement
+between 25 s and 30 s. These runs end at $t = 12$ s (8 s from rest). The periodicity evidence above
+supports the statement that the computed cycle is settled; it does not make a $t = 12$ s run identical
+to the benchmark evaluated at 25 to 30 s, and exact protocol reproduction is not claimed.
 
 ## Physical interpretation
 
@@ -300,11 +368,13 @@ Measured on: Apple M3 Pro, macOS 26.6.2-arm64, dolfinx 0.10.0, PETSc/MUMPS direc
 
 - **2D-1 steady** (direct LU, single Newton solve to convergence): 0.89 s (24,508 dofs) to 12.37 s
   (375,281 dofs); 5 Newton iterations at every resolution tested.
-- **2D-2 unsteady** (Crank-Nicolson, Newton solve every step, `full` config: 12,020 cells / 54,860
-  dofs, 1600 steps): 2045.36 s (34.1 min) total, i.e. $\approx 1.28\,\mathrm{s}$/step including
-  Newton iteration and MUMPS factorisation at every step. The $\Delta t=0.01$ sensitivity run at the
-  same mesh (800 steps) took 1002.71 s, $\approx 1.25\,\mathrm{s}$/step — consistent per-step cost,
-  as expected since halving $\Delta t$ does not change the per-step linear-algebra cost.
+- **2D-2 unsteady** (Crank-Nicolson, Newton solve every step, 12,020 cells / 54,860 dofs, four
+  force definitions and the pressure probe evaluated every step): about 0.4 to 0.7 s/step with the
+  residual, Newton problem and force forms built once and reused (2 to 3 Newton iterations per
+  step), against 1.28 s/step when the forms were rebuilt every step. Larger meshes scale
+  superlinearly under direct LU (about 11 CPU-s/step at 273,224 dofs (17,837 s CPU for 1,600 steps)). Wall times
+  on the machine used were inflated by other processes running at the same time; CPU time and thread
+  counts are recorded in each run's `results/2d2_<label>.json`.
 - No claim of "real-time" or GPU-accelerated performance is made; none was tested. All linear solves
   use a direct (MUMPS) factorisation; see Limitations for the iterative-solver follow-up this implies
   for substantially larger problems.
@@ -318,27 +388,35 @@ Measured on: Apple M3 Pro, macOS 26.6.2-arm64, dolfinx 0.10.0, PETSc/MUMPS direc
   first, per the brief; an iterative Krylov solver with a fieldsplit (e.g. PCD or SIMPLE-type)
   preconditioner is the natural next step for meshes much larger than the ~375k-dof ceiling tested
   here, and was not implemented.
-- **Straight-sided (affine, degree-1 geometry) mesh elements approximate the curved cylinder boundary
-  as a polygon.** Under mesh refinement this geometric approximation improves alongside the FE
-  approximation itself (part of the convergence behaviour reported above), but a curved
-  (isoparametric, higher-order geometry) mesh was not implemented and would reduce the required
-  resolution for a given accuracy.
+- **The default mesh geometry is degree 1 (a polygonal cylinder).** Curved degree-2 geometry is
+  available (`--geometry-order 2`) and is needed for the converged 2D-2 values reported above; the
+  degree-1 default is kept so that earlier polygonal results remain reproducible. Geometry orders
+  above 2 are not supported. On curved cells the P1 pressure is linear in reference, not physical,
+  coordinates, so physical-linear fields are represented only to $O(h^2\kappa)$ near the cylinder.
 - **Taylor-Hood is not pointwise divergence-free**, as discussed above; a small, mesh-convergent
   $\|\nabla\cdot\mathbf{u}_h\|_{L^2}$ is expected and is not a defect.
-- **The drag/lift/pressure-difference post-processing uses the general Cauchy-stress traction formula**
-  rather than the paper's literal tangential-derivative expression (see `src/forces.py` docstring for
-  the equivalence argument); this is standard practice for this exact benchmark (e.g. the FEniCS
-  tutorial's own cylinder-flow example) but is a deliberate implementation choice worth being explicit
-  about.
-- **2D-2 was not run on a full mesh-convergence ladder** the way 2D-1 was (3-4 resolution levels); the
-  sensitivity analysis above uses only two mesh sizes (`local`, `full`) and, at the finer mesh, two
-  time steps, which was enough to attribute the remaining gap to spatial resolution but not enough to
-  extrapolate a converged (mesh-independent) reference value the way the 2D-1 ladder's trend suggests
-  is achievable. The `full` mesh (12,020 cells) that reaches $C_{D,\max}$ within $0.19\%$ of the
-  reference interval has not itself been shown to be mesh-converged in the stricter sense of two
-  further refinement levels agreeing with each other.
-- CPU-only; no GPU or distributed-memory benchmarking was performed (though the implementation is
-  MPI-parallel via PETSc/dolfinx and would run unmodified on multiple ranks).
+- **The traction-based forces converge more slowly than the variational force** (see 2D-1 and 2D-2
+  above): at 122k dofs the benchmark-stress $C_{L,\max}$ was still changing by $1.7\times10^{-3}$ per
+  mesh level, and its time-step dependence is not monotone. Quantities computed with the
+  traction definitions should not be read as converged at the resolutions used here.
+- **The 2D-2 study is not a full asymptotic convergence proof.** It has five curved mesh levels
+  (14k to 273k dofs) at $\Delta t = 0.0025$ and a time-step ladder on one mesh. Time-step and mesh
+  effects were separated but not combined into a joint extrapolation; the observed mesh order of
+  the variational $C_{L,\max}$ and $C_{D,\max}$ is not stable across level triples, and quoted
+  Richardson estimates are estimates from three levels, not computed values. There is no
+  polygon run at the finest level and no time-step study on the finer meshes.
+- **The four force definitions do not agree on $C_{L,\max}$** at the finest mesh (0.9865 to 0.9879,
+  0.14 %); the traction-based values were still changing with mesh and with $\Delta t$.
+- **Reference provenance.** The 1996 benchmark paper was not re-read; its intervals are inherited
+  from earlier project documentation. The FeatFlow values are another code's published results.
+- **Time horizon.** Runs end at $t = 12$ s (8 s from rest), not at the benchmark's 25 to 30 s
+  window; periodicity is judged from the last-cycle drift.
+- **The pressure difference at a single instant is not uniquely defined** by the benchmark page used
+  here (it gives $p_\text{diff}(t)$ over a cycle), and the 1996 definition was not checked. It is
+  reported at the lift maximum and half a period later; they differ by about 0.002.
+- CPU-only; no GPU or distributed-memory benchmarking was performed. The solver and force
+  post-processing are written for MPI, but were only run on one rank; state save/restart is
+  serial-only.
 
 ## Reproducibility
 
@@ -358,14 +436,36 @@ python scripts/run_2d1_steady.py --config full    # ~20 s, matches published ref
 python scripts/plot_2d1_convergence.py --config full
 python scripts/plot_fields_2d1.py --config full
 
-# 2D-2 unsteady benchmark
-python scripts/run_2d2_unsteady.py --config smoke   # ~30 s
-python scripts/run_2d2_unsteady.py --config local   # ~2 min
-python scripts/run_2d2_unsteady.py --config full    # ~34 min (measured: 2045.36 s)
+# 2D-2 unsteady benchmark (the original polygonal setup; default --geometry-order 1)
+python scripts/run_2d2_unsteady.py --config smoke   # short sanity run
+python scripts/run_2d2_unsteady.py --config full --label full_p1
 
-# mesh/time-step sensitivity diagnostic (fine mesh, coarser dt; ~17 min)
-python scripts/run_2d2_unsteady.py --config full --dt-override 0.01 --label full_dt01
+# curved cylinder, from rest to t = 8 s, then a finer mesh started from the developed flow
+python scripts/run_2d2_unsteady.py --config full --geometry-order 2 --label geo_p2_full \
+    --save-state results/states/p2_base_t8.npz
+python scripts/run_2d2_unsteady.py --h-far 0.02 --h-cyl 0.00333 --dt 0.0025 --t-end 12 \
+    --geometry-order 2 --init-state results/states/p2_base_t8.npz --label sp_L4
+
+# the whole geometry / time-step / mesh study, then its tables
+bash scripts/study_2d2_commands.sh geometry   # then: temporal, spatial, polygon
+python scripts/collect_2d2_study.py --sequence sp_L1,sp_L2,t_p2_dt0025,sp_L4,sp_L5 --ratio 1.5 \
+    --method variational --triples
+
+# 2D-1 with curved geometry and all four force definitions
+python scripts/run_2d1_steady.py --config full --geometry-order 2 --label full_p2
 ```
+
+Every 2D-2 run writes `results/2d2_<label>.{txt,json}` (values, per-cycle data, geometry error,
+solver tolerances, commit, library versions, thread settings, timings) and a time-series `.npz`.
+A killed run continues from its last checkpoint with `--resume`.
+
+The results of the 2D-2 geometry / time-step / mesh study are the `results/2d2_<label>.txt` and
+`.json` files whose labels are listed in `docs/2d2_convergence_study.md`; the raw time series is
+kept in the repository only for the finest run (`results/2d2_timeseries_sp_L5.npz`), and the others
+regenerate from `scripts/study_2d2_commands.sh`. The files `results/2d2_unsteady_*.txt`,
+`results/2d2_timeseries_{smoke,local,full,full_dt01}.npz` and `figures/2d2_force_coefficients_*.png`
+come from the original polygonal configuration (symmetric stress, raw-sample maxima) and are kept
+unchanged as a record of it; they are superseded by the study results above.
 
 Raw numerical results are written to `results/*.txt` (and `*.npz` for time series); figures are
 generated from those results, not hand-drawn, and are written separately to `figures/`, so every
