@@ -362,6 +362,15 @@ cycle of a run to $t = 12$ s that is periodic to $10^{-7}$):
 
 The four force definitions span 3.2256 to 3.2276 in $C_{D,\max}$ and 0.9865 to 0.9879 in $C_{L,\max}$.
 
+![Drag and lift coefficient histories of the finest 2D-2 run, with a zoom on the last lift maximum](docs/figures/shedding_forces_L5.png)
+
+*Drag and lift over $t \in [8, 12]$ s for the finest run in the table above (curved degree-2
+cylinder, 273,224 dofs, $\Delta t = 0.0025$, continued from a developed $t = 8$ s state), for
+the benchmark-stress and variational forces. Shaded bands are the inherited intervals for the
+maxima. The zoom on the last lift peak shows $C_{L,\max}$ just below the 0.99 lower bound for
+both forces. Plotted from the tracked `results/2d2_timeseries_sp_L5.npz` by
+`docs/figures/make_shedding_figure.py`; nothing is re-simulated.*
+
 **Quantity by quantity.**
 
 * **$C_{D,\max}$.** Effectively converged at the $2\times10^{-4}$ level for the variational force
