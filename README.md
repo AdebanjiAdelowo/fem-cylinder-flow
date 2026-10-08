@@ -5,6 +5,15 @@ unsteady flow past a cylinder in a channel), implemented with FEniCSx, verified 
 manufactured solution before being trusted on the benchmark itself, and validated against the
 original published reference values.
 
+
+## Project overview
+
+Flow around a cylinder is a classic test of computational fluid dynamics: at low Reynolds number the flow settles to a steady pattern, while at higher Reynolds number vortices are shed periodically behind the cylinder. Because the geometry, forces and reference values are well studied, it is also a useful way to test whether a finite-element flow solver is behaving correctly.
+
+This project builds that workflow from the governing incompressible-flow equations through finite-element discretisation, nonlinear solution, force calculation and benchmark comparison. The emphasis is not on inventing a new CFD method, but on showing that the numerical method has been implemented and checked carefully enough for its results to be trusted.
+
+Readers interested mainly in the outcome can start with the scientific-status summary and benchmark results. The later sections give the weak formulation, element choices, convergence tests and force definitions used to support those results.
+
 ## Scientific status at a glance
 
 | | |
