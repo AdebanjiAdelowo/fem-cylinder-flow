@@ -5,6 +5,18 @@ unsteady flow past a cylinder in a channel), implemented with FEniCSx, verified 
 manufactured solution before being trusted on the benchmark itself, and validated against the
 original published reference values.
 
+## Scientific status at a glance
+
+| | |
+|---|---|
+| **Problem** | DFG 2D-1/2D-2 incompressible flow past a cylinder |
+| **Method** | Taylor-Hood P2/P1 FEM, Newton/SNES, Crank-Nicolson for 2D-2 |
+| **Verification** | Manufactured solutions, mesh/time-step studies, geometry and four force formulations |
+| **Headline result** | Steady benchmark agreement and periodic shedding with $St \approx 0.302$ |
+| **Main qualification** | 2D-3 is not implemented; traction-force extrema remain more discretisation-sensitive than the variational force |
+
+**Reproduce:** see the Environment and Verification sections and the tracked results files.
+
 ## Motivation
 
 This project demonstrates a different part of the applied-mathematics toolkit than the companion
