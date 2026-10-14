@@ -10,6 +10,11 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: conda-incubator/setup-miniconda@v3
@@ -23,4 +28,7 @@ jobs:
         run: python -m compileall -q src tests scripts
       - name: Scientific unit tests
         shell: bash -el {0}
-        run: python -m pytest -q tests
+        run: |
+          echo "Python: $(command -v python)"
+          python -c 'import sys; print(sys.executable)'
+          python -m pytest -q tests
