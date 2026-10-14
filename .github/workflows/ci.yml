@@ -1,0 +1,26 @@
+name: Scientific CI
+on:
+  push:
+    branches: [main, "ci/**"]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: fenicsx
+          environment-file: environment.yml
+          auto-activate-base: false
+      - name: Syntax check
+        shell: bash -el {0}
+        run: python -m compileall -q src tests scripts
+      - name: Scientific unit tests
+        shell: bash -el {0}
+        run: python -m pytest -q tests
