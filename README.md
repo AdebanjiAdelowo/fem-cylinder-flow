@@ -1,5 +1,7 @@
 # Finite-Element Simulation of 2D Incompressible Flow Past a Cylinder
 
+[![Scientific CI](https://github.com/AdebanjiAdelowo/fem-cylinder-flow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AdebanjiAdelowo/fem-cylinder-flow/actions/workflows/ci.yml)
+
 A Taylor-Hood P2/P1 finite-element solver for the classical DFG 2D-1/2D-2 benchmark (steady and
 unsteady flow past a cylinder in a channel), implemented with FEniCSx, verified against a
 manufactured solution before being trusted on the benchmark itself, and validated against the
